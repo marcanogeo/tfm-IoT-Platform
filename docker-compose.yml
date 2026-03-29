@@ -1,0 +1,84 @@
+#version: '3.8'
+
+services:
+  # Broker MQTT
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: iot-mosquitto
+    ports:
+      - "1883:1883"
+      - "9001:9001" # websocket
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+    networks:
+      - iot-network
+    restart: always
+
+  # Base de datos InfluxDB (Series Temporales)
+  influxdb:
+    image: influxdb:2.7
+    container_name: iot-influxdb
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+      - influxdb_config:/etc/influxdb2
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=admin123
+      - DOCKER_INFLUXDB_INIT_ORG=tfm-iot
+      - DOCKER_INFLUXDB_INIT_BUCKET=sensor-data
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=sR9ozJ4plkU1XZeJRm_UH8-3eWADt6FHxuX6u_ws7ruZwxvdRYFfDEwu4OJIo_j7Vnf0_bYago9zlHaqdegTSQ==
+    networks:
+      - iot-network
+    restart: always
+
+  # Base de Datos Documental (Usuarios y Alertas)
+  mongodb:
+    image: mongo:6
+    container_name: iot-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=admin123
+    networks:
+      - iot-network
+    restart: always
+
+  # Node-RED (simulador ESP32 + Backend)
+  nodered:
+    image: nodered/node-red:latest
+    container_name: iot-nodered
+    ports:
+      - "1880:1880"
+    volumes:
+      - nodered_data:/data
+    environment:
+      - TZ=Europe/Madrid
+    depends_on:
+      - mosquitto
+      - influxdb
+      - mongodb
+    networks:
+      - iot-network
+    restart: always
+
+volumes:
+  mosquitto_data:
+  mosquitto_log:
+  influxdb_data:
+  influxdb_config:
+  mongodb_data:
+  nodered_data:
+
+networks:
+  iot-network:
+    driver: bridge
+
+
