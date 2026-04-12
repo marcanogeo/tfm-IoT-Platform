@@ -14,7 +14,7 @@ services:
       - mosquitto_log:/mosquitto/log
     networks:
       - iot-network
-    restart: always
+    ##restart: always
 
   # Base de datos InfluxDB (Series Temporales)
   influxdb:
@@ -34,7 +34,7 @@ services:
       - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=sR9ozJ4plkU1XZeJRm_UH8-3eWADt6FHxuX6u_ws7ruZwxvdRYFfDEwu4OJIo_j7Vnf0_bYago9zlHaqdegTSQ==
     networks:
       - iot-network
-    restart: always
+    ##restart: always
 
   # Base de Datos Documental (Usuarios y Alertas)
   mongodb:
@@ -49,7 +49,7 @@ services:
       - MONGO_INITDB_ROOT_PASSWORD=admin123
     networks:
       - iot-network
-    restart: always
+   ###restart: always
 
   # Node-RED (simulador ESP32 + Backend)
   nodered:
@@ -67,7 +67,7 @@ services:
       - mongodb
     networks:
       - iot-network
-    restart: always
+    ###restart: always
 
 volumes:
   mosquitto_data:
