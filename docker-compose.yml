@@ -69,7 +69,7 @@ services:
       - iot-network
     ###restart: always
 # visualización Grafana
-grafana:
+  grafana:
     image: grafana/grafana:latest
     container_name: iot-grafana
     ports:
@@ -77,12 +77,12 @@ grafana:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin123
-      - GF_USERS_ALLOW_SIGN_UP = false
+      - GF_USERS_ALLOW_SIGN_UP=false
     depends_on:
       - influxdb
     networks:
       - iot-network
-    ##restart: always
+    ###restart: always
 volumes:
   mosquitto_data:
   mosquitto_log:
