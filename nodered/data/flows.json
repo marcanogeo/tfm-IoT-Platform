@@ -1,0 +1,486 @@
+[
+    {
+        "id": "89a4404e24f13225",
+        "type": "tab",
+        "label": "tfm-iot",
+        "disabled": false,
+        "info": ""
+    },
+    {
+        "id": "3f0edf6968797295",
+        "type": "comment",
+        "z": "89a4404e24f13225",
+        "name": "WARNING: please check you have started this container with a volume that is mounted to /data\\n otherwise any flow changes are lost when you redeploy or upgrade the container\\n (e.g. upgrade to a more recent node-red docker image).\\n  If you are using named volumes you can ignore this warning.\\n Double click or see info side panel to learn how to start Node-RED in Docker to save your work",
+        "info": "\nTo start docker with a bind mount volume (-v option), for example:\n\n```\ndocker run -it -p 1880:1880 -v /home/user/node_red_data:/data --name mynodered nodered/node-red\n```\n\nwhere `/home/user/node_red_data` is a directory on your host machine where you want to store your flows.\n\nIf you do not do this then you can experiment and redploy flows, but if you restart or upgrade the container the flows will be disconnected and lost. \n\nThey will still exist in a hidden data volume, which can be recovered using standard docker techniques, but that is much more complex than just starting with a named volume as described above.",
+        "x": 350,
+        "y": 80,
+        "wires": []
+    },
+    {
+        "id": "e79f45c0d0e5cf42",
+        "type": "mqtt in",
+        "z": "89a4404e24f13225",
+        "name": "iot-nodered",
+        "topic": "tfm/ambiental/#",
+        "qos": "0",
+        "datatype": "auto-detect",
+        "broker": "fd2a57e5e7814d59",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 290,
+        "y": 180,
+        "wires": [
+            [
+                "ec7c556e15e2ec5e"
+            ]
+        ]
+    },
+    {
+        "id": "6816c84e283bfcea",
+        "type": "mqtt out",
+        "z": "89a4404e24f13225",
+        "name": "iot-nodered",
+        "topic": "",
+        "qos": "0",
+        "retain": "true",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "fd2a57e5e7814d59",
+        "x": 730,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "f70882315b6d3738",
+        "type": "debug",
+        "z": "89a4404e24f13225",
+        "name": "debug 1",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 720,
+        "y": 240,
+        "wires": []
+    },
+    {
+        "id": "ec7c556e15e2ec5e",
+        "type": "function",
+        "z": "89a4404e24f13225",
+        "name": "Procesar en BDs",
+        "func": "// ── CONFIGURACIÓN ────────────────────────────────────────────────\nconst DEBUG = false;\nfunction dbg(msg) { if (DEBUG) node.warn(msg); }\n\n// ── FILTRO 1: ignorar mensajes de status MQTT ────────────────────\nlet raw = msg.payload;\nif (raw === \"online\" || raw === \"offline\") return null;\n\n// ── Parseo ───────────────────────────────────────────────────────\nlet p = raw;\nif (Buffer.isBuffer(p)) p = p.toString();\nif (typeof p === \"string\") {\n    try { p = JSON.parse(p); }\n    catch (err) { dbg(\"Payload no es JSON válido: \" + p); return null; }\n}\nif (!p || typeof p !== \"object\") { dbg(\"Payload inválido\"); return null; }\nif (!p.sensors || typeof p.sensors !== \"object\") { dbg(\"Falta objeto sensors\"); return null; }\n\n// ── Metadatos ────────────────────────────────────────────────────\nlet deviceId = p.device_id || \"desconocido\";\nlet zone = p.zone || \"sin_zona\";\n\n// ── FILTRO 2: ignorar device_id con formato antiguo (datos retain) ──\nif (deviceId.startsWith(\"ESP32_Node\") || deviceId.startsWith(\"device_\")) {\n    dbg(\"Ignorando device_id con formato antiguo: \" + deviceId);\n    return null;\n}\n\n// ── Timestamp ────────────────────────────────────────────────────\nlet timestamp = p.timestamp || Math.floor(Date.now() / 1000);\nif (typeof timestamp === \"string\") {\n    let n = Number(timestamp);\n    if (!isNaN(n)) { timestamp = n; }\n    else {\n        let d = Date.parse(timestamp);\n        timestamp = !isNaN(d) ? Math.floor(d / 1000) : Math.floor(Date.now() / 1000);\n    }\n}\nlet timestampMs = timestamp * 1000;\n\n// ── Sensores ─────────────────────────────────────────────────────\nlet s = p.sensors;\nlet temperatura = s.temperature_c ?? null;\nlet humedad = s.humidity_pct ?? null;\nlet lightRaw = s.light_raw ?? null;\nlet gasDetected = s.gas_detected ?? null;\nlet gasMq2Raw = s.gas_mq2_raw ?? null;\nlet gasMq2Voltage = s.gas_mq2_voltage ?? null;\nlet gasMq2Percent = s.gas_mq2_percent ?? null;\nlet gasMq2Ratio = s.gas_mq2_ratio ?? null;\nlet gasMq2PpmEst = s.gas_mq2_ppm_est ?? null;\n\n// ── Aviso campos faltantes (solo en modo debug) ──────────────────\nif (DEBUG) {\n    let faltantes = [];\n    if (temperatura === null) faltantes.push(\"temperature_c\");\n    if (humedad === null) faltantes.push(\"humidity_pct\");\n    if (lightRaw === null) faltantes.push(\"light_raw\");\n    if (gasDetected === null) faltantes.push(\"gas_detected\");\n    if (gasMq2Raw === null) faltantes.push(\"gas_mq2_raw\");\n    if (gasMq2Voltage === null) faltantes.push(\"gas_mq2_voltage\");\n    if (gasMq2Percent === null) faltantes.push(\"gas_mq2_percent\");\n    if (gasMq2Ratio === null) faltantes.push(\"gas_mq2_ratio\");\n    if (gasMq2PpmEst === null) faltantes.push(\"gas_mq2_ppm_est\");\n    if (faltantes.length > 0) dbg(\"Faltan campos para \" + deviceId + \": \" + faltantes.join(\", \"));\n    dbg(\"device_id: \" + deviceId + \" | zone: \" + zone);\n}\n\n// ── Salida InfluxDB  [fields, tags, timestamp] ───────────────────\nlet fields = { temperatura, humedad, lightRaw, gasDetected, gasMq2Raw, gasMq2Voltage, gasMq2Percent, gasMq2Ratio, gasMq2PpmEst };\nObject.keys(fields).forEach(k => { if (fields[k] === null) delete fields[k]; })\n\nlet msgInflux = {\n    measurement: \"telemetria_ambiental\",\n    payload: [\n        {\n            temperature_c: temperatura,\n            humidity_pct: humedad,\n            light_raw: lightRaw,\n            gas_detected: gasDetected !== null ? (gasDetected ? 1 : 0) : null,\n            gas_mq2_raw: gasMq2Raw,\n            gas_mq2_voltage: gasMq2Voltage,\n            gas_mq2_percent: gasMq2Percent,\n            gas_mq2_ratio: gasMq2Ratio,\n            gas_mq2_ppm_est: gasMq2PpmEst\n        },\n        {\n            device_id: String(deviceId),\n            zone: String(zone)\n        },\n        timestampMs\n    ]\n};\n\n// ── Salida MongoDB ───────────────────────────────────────────────\nlet msgMongo = {\n    payload: {\n        device_id: deviceId,\n        zone: zone,\n        topic: msg.topic,\n        timestamp: timestamp,\n        sensors: {\n            temperature_c: temperatura,\n            humidity_pct: humedad,\n            light_raw: lightRaw,\n            gas_detected: gasDetected,\n            gas_mq2_raw: gasMq2Raw,\n            gas_mq2_voltage: gasMq2Voltage,\n            gas_mq2_percent: gasMq2Percent,\n            gas_mq2_ratio: gasMq2Ratio,\n            gas_mq2_ppm_est: gasMq2PpmEst\n        }\n    }\n};\n\nreturn [msgInflux, msgMongo];",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 530,
+        "y": 320,
+        "wires": [
+            [
+                "563ea046be64614c",
+                "ed139fe0b8bff514"
+            ],
+            [
+                "8f32195c5be144da",
+                "0ec807a0c2395de1",
+                "85b8f81385122331"
+            ]
+        ]
+    },
+    {
+        "id": "ed139fe0b8bff514",
+        "type": "debug",
+        "z": "89a4404e24f13225",
+        "name": "debug 2",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 840,
+        "y": 340,
+        "wires": []
+    },
+    {
+        "id": "85b8f81385122331",
+        "type": "debug",
+        "z": "89a4404e24f13225",
+        "name": "debug 3",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 860,
+        "y": 500,
+        "wires": []
+    },
+    {
+        "id": "7d1be98bb5e0bf9a",
+        "type": "delay",
+        "z": "89a4404e24f13225",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "30",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 510,
+        "y": 180,
+        "wires": [
+            [
+                "6816c84e283bfcea",
+                "f70882315b6d3738"
+            ]
+        ]
+    },
+    {
+        "id": "563ea046be64614c",
+        "type": "influxdb out",
+        "z": "89a4404e24f13225",
+        "influxdb": "b59cc435de5ed9a9",
+        "name": "iot-influxdb",
+        "measurement": "telemetria_ambiental",
+        "precision": "",
+        "retentionPolicy": "",
+        "database": "database",
+        "precisionV18FluxV20": "ms",
+        "retentionPolicyV18Flux": "",
+        "org": "tfm-iot",
+        "bucket": "sensor-data-raw",
+        "x": 850,
+        "y": 300,
+        "wires": []
+    },
+    {
+        "id": "7394a836db9ef30f",
+        "type": "mongodb out",
+        "z": "89a4404e24f13225",
+        "mongodb": "2bc1f37197a60103",
+        "name": "iot-mongodb",
+        "collection": "alerts",
+        "payonly": true,
+        "upsert": false,
+        "multi": false,
+        "operation": "insert",
+        "x": 1170,
+        "y": 440,
+        "wires": []
+    },
+    {
+        "id": "0ec807a0c2395de1",
+        "type": "function",
+        "z": "89a4404e24f13225",
+        "name": "Evaluar umbrales",
+        "func": "let s = msg.payload.sensors;\n\nif (!s) return null;\n\nconst UMBRALES = {\n    temperature_c: { max: 35 },\n    humidity_pct: { max: 90 },\n    gas_mq2_ppm_est: { max: 200 }\n};\n\nlet alertas = [];\nfor (let campo in UMBRALES) {\n    let val = s[campo];\n    let u = UMBRALES[campo];\n    if (val === null || val === undefined) continue;\n    if (u.max !== undefined && val > u.max)\n        alertas.push({ field: campo, value: val, threshold: u.max, op: \">\" });\n    if (u.min !== undefined && val < u.min)\n        alertas.push({ field: campo, value: val, threshold: u.min, op: \"<\" });\n}\n\n// Si no hay alertas, no insertar nada\nif (alertas.length === 0) return null;\n\nmsg.payload = {\n    device_id: msg.payload.device_id,\n    zone: msg.payload.zone,\n    triggered_at: new Date(msg.payload.timestamp * 1000),\n    alerts: alertas,\n    notified_via: [],\n    resolved_at: null\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 890,
+        "y": 440,
+        "wires": [
+            [
+                "7394a836db9ef30f",
+                "c7f7e50fd1de247a"
+            ]
+        ]
+    },
+    {
+        "id": "8f32195c5be144da",
+        "type": "function",
+        "z": "89a4404e24f13225",
+        "name": "Extraer device_id + last_seen",
+        "func": "let p = msg.payload;\n\nif (!p || typeof p !== \"object\" || Array.isArray(p)) {\n    node.warn(\"Payload inválido para device-upsert\");\n    node.warn(JSON.stringify(p));\n    return null;\n}\n\nif (!p.device_id) {\n    node.warn(\"No existe device_id en el payload\");\n    node.warn(JSON.stringify(p));\n    return null;\n}\n\nlet now = new Date(); //.toISOString();\n\nmsg.query = {\n    device_id: p.device_id\n};\n\nmsg.payload = {\n    $set: {\n        device_id: p.device_id,\n        zone: p.zone || \"Sin_zona\",\n        topic: p.topic || msg.topic,\n        status: \"online\",\n        last_seen: now,\n        last_seen_epoch: p.timestamp || Math.floor(Date.now() / 1000),\n        sensors: Object.keys(p.sensors || {}),\n        updated_at: now\n    },\n    $setOnInsert: {\n        created_at: now\n    }\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 840,
+        "y": 700,
+        "wires": [
+            [
+                "3d63f60bfade9ab9",
+                "c9546876552cea74"
+            ]
+        ]
+    },
+    {
+        "id": "3d63f60bfade9ab9",
+        "type": "mongodb out",
+        "z": "89a4404e24f13225",
+        "mongodb": "2bc1f37197a60103",
+        "name": "device-upsert",
+        "collection": "devices",
+        "payonly": false,
+        "upsert": true,
+        "multi": false,
+        "operation": "update",
+        "x": 1220,
+        "y": 640,
+        "wires": []
+    },
+    {
+        "id": "c9546876552cea74",
+        "type": "debug",
+        "z": "89a4404e24f13225",
+        "name": "debug 4",
+        "active": false,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1220,
+        "y": 720,
+        "wires": []
+    },
+    {
+        "id": "12ce391a8f836868",
+        "type": "catch",
+        "z": "89a4404e24f13225",
+        "name": "Captura errores de todos los nodos",
+        "scope": null,
+        "uncaught": false,
+        "x": 380,
+        "y": 820,
+        "wires": [
+            [
+                "8258b1648f670afe"
+            ]
+        ]
+    },
+    {
+        "id": "8258b1648f670afe",
+        "type": "function",
+        "z": "89a4404e24f13225",
+        "name": "formatear error",
+        "func": "msg.payload = {\n    error: msg.error.message,\n    nodo: msg.error.source.name || msg.error.source.id,\n    tipo: msg.error.source.type,\n    fecha: new Date().toISOString\n};\n\nnode.warn(\"Error en \" + msg.payload.nodo + \":\" + msg.payload.error);\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 680,
+        "y": 820,
+        "wires": [
+            [
+                "ee34172dc59a4843"
+            ]
+        ]
+    },
+    {
+        "id": "ee34172dc59a4843",
+        "type": "debug",
+        "z": "89a4404e24f13225",
+        "name": "log-errores",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 930,
+        "y": 820,
+        "wires": []
+    },
+    {
+        "id": "40e4232efad7a5bf",
+        "type": "function",
+        "z": "89a4404e24f13225",
+        "name": "Formatear Alerta Telegram",
+        "func": "// Formatear mensaje de alerta para Telegram\nlet alerta = msg.payload.alerts[0];\nlet device = msg.payload.device_id;\nlet zona = msg.payload.zone;\n\nmsg.payload = {\n    chatId: 6225327992,\n    type: \"message\",\n    content: `🚨 *ALERTA IoT - TFM*\\n\\n` +\n        `📍 Dispositivo: ${device}\\n` +\n        `🗺️ Zona: ${zona}\\n` +\n        `⚠️ Variable: ${alerta.field}\\n` +\n        `📊 Valor: ${alerta.value.toFixed(2)}\\n` +\n        `🔴 Umbral: ${alerta.threshold}\\n` +\n        `🕐 ${new Date().toLocaleString('es-ES')}`,\n    parse_mode: \"Markdown\"\n};\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1460,
+        "y": 540,
+        "wires": [
+            [
+                "e4f184378c32cb44",
+                "43f4a20882580a9e"
+            ]
+        ]
+    },
+    {
+        "id": "43f4a20882580a9e",
+        "type": "telegram sender",
+        "z": "89a4404e24f13225",
+        "name": "TFM IoT Bot",
+        "bot": "a130045ba0883fe3",
+        "haserroroutput": false,
+        "outputs": 1,
+        "x": 1750,
+        "y": 540,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "e4f184378c32cb44",
+        "type": "http request",
+        "z": "89a4404e24f13225",
+        "name": "",
+        "method": "POST",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "https://api.telegram.org/bot8975854795:AAEuEfKzqJoGYD_hC-xoLMAgMZNCoyksKhw/sendMessage",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 1750,
+        "y": 460,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "c7f7e50fd1de247a",
+        "type": "function",
+        "z": "89a4404e24f13225",
+        "name": "Anti-spam Telegram",
+        "func": "// Control anti-spam: máximo 1 alerta cada 10 minutos por dispositivo\nconst INTERVALO_MIN = 10;\nconst ahora = Date.now();\n\n// Recuperar registro de últimas alertas enviadas\nlet ultimasAlertas = flow.get(\"ultimasAlertas\") || {};\n\nlet deviceId = msg.payload.device_id;\nlet campo = msg.payload.alerts[0].field;\nlet clave = `${deviceId}_${campo}`;\n\nlet ultimaVez = ultimasAlertas[clave] || 0;\nlet minutosTranscurridos = (ahora - ultimaVez) / 60000;\n\nif (minutosTranscurridos < INTERVALO_MIN) {\n    let minutosRestantes = (INTERVALO_MIN - minutosTranscurridos).toFixed(1);\n    node.warn(`Anti-spam: alerta ${clave} bloqueada, faltan ${minutosRestantes} min`);\n    return null; // bloquear notificación\n}\n\n// Actualizar timestamp de última alerta enviada\nultimasAlertas[clave] = ahora;\nflow.set(\"ultimasAlertas\", ultimasAlertas);\n\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 1200,
+        "y": 540,
+        "wires": [
+            [
+                "40e4232efad7a5bf"
+            ]
+        ]
+    },
+    {
+        "id": "fd2a57e5e7814d59",
+        "type": "mqtt-broker",
+        "name": "iot-nodered",
+        "broker": "broker.hivemq.com",
+        "port": 1883,
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": 60,
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "true",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "b59cc435de5ed9a9",
+        "type": "influxdb",
+        "hostname": "127.0.0.1",
+        "port": 8086,
+        "protocol": "http",
+        "database": "database",
+        "name": "iot-influxDB",
+        "usetls": false,
+        "tls": "",
+        "influxdbVersion": "2.0",
+        "url": "http://influxdb:8086",
+        "timeout": 10,
+        "rejectUnauthorized": true
+    },
+    {
+        "id": "2bc1f37197a60103",
+        "type": "mongodb",
+        "hostname": "mongodb",
+        "topology": "direct",
+        "connectOptions": "authSource=admin",
+        "port": 27017,
+        "db": "iotdb",
+        "name": "iot-mongodb"
+    },
+    {
+        "id": "a130045ba0883fe3",
+        "type": "telegram bot",
+        "botname": "TFM IoT Bot",
+        "usernames": "",
+        "chatids": "",
+        "baseapiurl": "",
+        "testenvironment": false,
+        "updatemode": "polling",
+        "pollinterval": 300,
+        "usesocks": false,
+        "sockshost": "",
+        "socksprotocol": "socks5",
+        "socksport": 6667,
+        "socksusername": "anonymous",
+        "sockspassword": "",
+        "bothost": "",
+        "botpath": "",
+        "localbothost": "0.0.0.0",
+        "localbotport": 8443,
+        "publicbotport": 8443,
+        "privatekey": "",
+        "certificate": "",
+        "useselfsignedcertificate": false,
+        "sslterminated": false,
+        "verboselogging": false
+    },
+    {
+        "id": "53e478d1ca7d0516",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-contrib-influxdb": "0.7.0",
+            "node-red-node-mongodb": "0.2.5",
+            "node-red-contrib-telegrambot": "17.4.2"
+        }
+    }
+]

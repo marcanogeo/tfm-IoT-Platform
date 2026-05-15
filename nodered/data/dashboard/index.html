@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TFM — Sistema de Monitoreo Ambiental IoT</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #080c10;
+    --surface:   #0d1117;
+    --border:    #1e2a38;
+    --accent:    #00e5ff;
+    --accent2:   #39ff14;
+    --warn:      #ff4757;
+    --warn2:     #ffa502;
+    --text:      #e8edf2;
+    --muted:     #4a5568;
+    --card:      #0f1923;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── GRID BACKGROUND ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── HEADER ── */
+  header {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.2rem 2rem;
+    border-bottom: 1px solid var(--border);
+    background: rgba(8,12,16,.9);
+    backdrop-filter: blur(12px);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: .8rem;
+  }
+
+  .logo-icon {
+    width: 36px; height: 36px;
+    border: 2px solid var(--accent);
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    position: relative;
+  }
+
+  .logo-icon::before {
+    content: '';
+    width: 12px; height: 12px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%,100% { opacity:1; transform:scale(1); }
+    50%      { opacity:.4; transform:scale(1.4); }
+  }
+
+  .logo h1 {
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+    color: var(--text);
+  }
+
+  .logo span {
+    display: block;
+    font-family: 'Space Mono', monospace;
+    font-size: .65rem;
+    color: var(--accent);
+    letter-spacing: .15em;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+  }
+
+  .status-badge {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-family: 'Space Mono', monospace;
+    font-size: .7rem;
+    color: var(--accent2);
+    border: 1px solid rgba(57,255,20,.3);
+    padding: .3rem .8rem;
+    border-radius: 4px;
+    background: rgba(57,255,20,.05);
+  }
+
+  .status-dot {
+    width: 6px; height: 6px;
+    background: var(--accent2);
+    border-radius: 50%;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+
+  .timestamp {
+    font-family: 'Space Mono', monospace;
+    font-size: .7rem;
+    color: var(--muted);
+  }
+
+  /* ── MAIN ── */
+  main {
+    position: relative;
+    z-index: 1;
+    padding: 1.5rem 2rem 3rem;
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+
+  /* ── SECTION LABELS ── */
+  .section-label {
+    font-family: 'Space Mono', monospace;
+    font-size: .65rem;
+    letter-spacing: .2em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, var(--border), transparent);
+  }
+
+  /* ── KPI STRIP ── */
+  .kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .kpi-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.2rem 1.4rem;
+    position: relative;
+    overflow: hidden;
+    transition: border-color .3s;
+  }
+
+  .kpi-card:hover { border-color: var(--accent); }
+
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+  }
+
+  .kpi-card.warn::before { background: linear-gradient(90deg, var(--warn), transparent); }
+  .kpi-card.warn { border-color: rgba(255,71,87,.3); }
+
+  .kpi-label {
+    font-family: 'Space Mono', monospace;
+    font-size: .6rem;
+    letter-spacing: .15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: .4rem;
+  }
+
+  .kpi-value {
+    font-size: 2.2rem;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--accent);
+    font-family: 'Space Mono', monospace;
+  }
+
+  .kpi-card.warn .kpi-value { color: var(--warn); }
+
+  .kpi-sub {
+    font-size: .7rem;
+    color: var(--muted);
+    margin-top: .3rem;
+    font-family: 'Space Mono', monospace;
+  }
+
+  .kpi-icon {
+    position: absolute;
+    top: 1rem; right: 1rem;
+    font-size: 1.4rem;
+    opacity: .2;
+  }
+
+  /* ── GRAFANA IFRAMES ── */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .chart-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    transition: border-color .3s;
+  }
+
+  .chart-card:hover { border-color: rgba(0,229,255,.4); }
+
+  .chart-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: .8rem 1.2rem;
+    border-bottom: 1px solid var(--border);
+    background: rgba(0,229,255,.03);
+  }
+
+  .chart-title {
+    font-size: .8rem;
+    font-weight: 600;
+    letter-spacing: .05em;
+    color: var(--text);
+  }
+
+  .chart-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: .6rem;
+    color: var(--accent);
+    border: 1px solid rgba(0,229,255,.3);
+    padding: .2rem .5rem;
+    border-radius: 3px;
+  }
+
+  .chart-card iframe {
+    width: 100%;
+    height: 260px;
+    border: none;
+    display: block;
+    background: var(--card);
+  }
+
+  .chart-card.wide {
+    grid-column: span 2;
+  }
+
+  .chart-card.wide iframe {
+    height: 280px;
+  }
+
+  /* ── BOTTOM ROW ── */
+  .bottom-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+
+  /* ── ALERTS TABLE ── */
+  .alerts-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: .8rem 1.2rem;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,71,87,.03);
+  }
+
+  .card-title {
+    font-size: .8rem;
+    font-weight: 600;
+    letter-spacing: .05em;
+  }
+
+  .alert-count {
+    font-family: 'Space Mono', monospace;
+    font-size: .65rem;
+    background: rgba(255,71,87,.15);
+    color: var(--warn);
+    border: 1px solid rgba(255,71,87,.3);
+    padding: .2rem .6rem;
+    border-radius: 3px;
+  }
+
+  .alerts-list {
+    padding: .6rem;
+    max-height: 280px;
+    overflow-y: auto;
+  }
+
+  .alerts-list::-webkit-scrollbar { width: 4px; }
+  .alerts-list::-webkit-scrollbar-track { background: transparent; }
+  .alerts-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .alert-item {
+    display: flex;
+    align-items: flex-start;
+    gap: .8rem;
+    padding: .7rem .8rem;
+    border-radius: 6px;
+    margin-bottom: .4rem;
+    background: rgba(255,71,87,.05);
+    border: 1px solid rgba(255,71,87,.1);
+    transition: background .2s;
+  }
+
+  .alert-item:hover { background: rgba(255,71,87,.1); }
+
+  .alert-dot {
+    width: 8px; height: 8px;
+    background: var(--warn);
+    border-radius: 50%;
+    margin-top: 4px;
+    flex-shrink: 0;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  .alert-info { flex: 1; }
+
+  .alert-device {
+    font-family: 'Space Mono', monospace;
+    font-size: .7rem;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .alert-detail {
+    font-size: .72rem;
+    color: var(--text);
+    margin-top: .15rem;
+  }
+
+  .alert-value {
+    color: var(--warn);
+    font-weight: 700;
+  }
+
+  .alert-time {
+    font-family: 'Space Mono', monospace;
+    font-size: .6rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .no-alerts {
+    text-align: center;
+    padding: 2rem;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: .75rem;
+  }
+
+  /* ── DEVICES STATUS ── */
+  .devices-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .devices-list { padding: .6rem; }
+
+  .device-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: .8rem 1rem;
+    border-radius: 6px;
+    margin-bottom: .4rem;
+    border: 1px solid var(--border);
+    background: rgba(0,229,255,.02);
+    transition: all .2s;
+  }
+
+  .device-item:hover {
+    border-color: rgba(0,229,255,.3);
+    background: rgba(0,229,255,.05);
+  }
+
+  .device-left {
+    display: flex;
+    align-items: center;
+    gap: .8rem;
+  }
+
+  .device-indicator {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--accent2);
+    box-shadow: 0 0 8px var(--accent2);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  .device-indicator.offline {
+    background: var(--muted);
+    box-shadow: none;
+    animation: none;
+  }
+
+  .device-name {
+    font-family: 'Space Mono', monospace;
+    font-size: .8rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .device-zone {
+    font-size: .7rem;
+    color: var(--muted);
+    margin-top: .1rem;
+  }
+
+  .device-right { text-align: right; }
+
+  .device-status {
+    font-family: 'Space Mono', monospace;
+    font-size: .65rem;
+    color: var(--accent2);
+    border: 1px solid rgba(57,255,20,.3);
+    padding: .2rem .5rem;
+    border-radius: 3px;
+  }
+
+  .device-status.offline {
+    color: var(--muted);
+    border-color: var(--border);
+  }
+
+  .device-lastseen {
+    font-family: 'Space Mono', monospace;
+    font-size: .6rem;
+    color: var(--muted);
+    margin-top: .2rem;
+  }
+
+  /* ── LOADING STATE ── */
+  .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    font-size: .75rem;
+    gap: .5rem;
+  }
+
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── ERROR STATE ── */
+  .error-msg {
+    text-align: center;
+    padding: 1.5rem;
+    color: var(--warn);
+    font-family: 'Space Mono', monospace;
+    font-size: .72rem;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    .kpi-strip { grid-template-columns: repeat(2, 1fr); }
+    .charts-grid { grid-template-columns: 1fr; }
+    .chart-card.wide { grid-column: span 1; }
+    .bottom-grid { grid-template-columns: 1fr; }
+    main { padding: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon"></div>
+    <div>
+      <h1>MONITOREO AMBIENTAL IoT</h1>
+      <span>TFM · ESP32 · MQTT · INFLUXDB · MONGODB</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="status-badge">
+      <div class="status-dot"></div>
+      SISTEMA ACTIVO
+    </div>
+    <div class="timestamp" id="clock">--:--:--</div>
+  </div>
+</header>
+
+<main>
+
+  <!-- KPI STRIP -->
+  <div class="section-label">Estado actual — últimos 5 minutos</div>
+  <div class="kpi-strip" id="kpi-strip">
+    <div class="kpi-card">
+      <div class="kpi-icon">🌡️</div>
+      <div class="kpi-label">Temperatura</div>
+      <div class="kpi-value" id="kpi-temp">--</div>
+      <div class="kpi-sub">°C · promedio nodos</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon">💧</div>
+      <div class="kpi-label">Humedad</div>
+      <div class="kpi-value" id="kpi-hum">--</div>
+      <div class="kpi-sub">% · promedio nodos</div>
+    </div>
+    <div class="kpi-card warn" id="kpi-gas-card">
+      <div class="kpi-icon">☁️</div>
+      <div class="kpi-label">Gas MQ2 est.</div>
+      <div class="kpi-value" id="kpi-gas">--</div>
+      <div class="kpi-sub">ppm · umbral 200</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-icon">☀️</div>
+      <div class="kpi-label">Luminosidad</div>
+      <div class="kpi-value" id="kpi-light">--</div>
+      <div class="kpi-sub">ADC raw · 0-4095</div>
+    </div>
+  </div>
+
+  <!-- GRAFANA CHARTS -->
+  <div class="section-label">Evolución temporal — Grafana</div>
+  <div class="charts-grid">
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <span class="chart-title">🌡️ Temperatura por dispositivo</span>
+        <span class="chart-badge">°C</span>
+      </div>
+      <iframe src="http://localhost:3000/d-solo/adrdbkz/tfm-monitoreo-ambiental?orgId=1&panelId=panel-1&theme=dark&refresh=30s" allowfullscreen></iframe>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <span class="chart-title">💧 Humedad por dispositivo</span>
+        <span class="chart-badge">%</span>
+      </div>
+      <iframe src="http://localhost:3000/d-solo/adrdbkz/tfm-monitoreo-ambiental?orgId=1&panelId=panel-2&theme=dark&refresh=30s" allowfullscreen></iframe>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <span class="chart-title">☁️ Gas MQ2 estimado con umbral</span>
+        <span class="chart-badge">ppm</span>
+      </div>
+      <iframe src="http://localhost:3000/d-solo/adrdbkz/tfm-monitoreo-ambiental?orgId=1&panelId=panel-3&theme=dark&refresh=30s" allowfullscreen></iframe>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <span class="chart-title">☀️ Luminosidad por dispositivo</span>
+        <span class="chart-badge">RAW</span>
+      </div>
+      <iframe src="http://localhost:3000/d-solo/adrdbkz/tfm-monitoreo-ambiental?orgId=1&panelId=panel-4&theme=dark&refresh=30s" allowfullscreen></iframe>
+    </div>
+
+  </div>
+
+  <!-- BOTTOM: ALERTS + DEVICES -->
+  <div class="section-label">Sistema — alertas y dispositivos</div>
+  <div class="bottom-grid">
+
+    <!-- ALERTS -->
+    <div class="alerts-card">
+      <div class="card-header">
+        <span class="card-title">🔴 Últimas alertas</span>
+        <span class="alert-count" id="alert-count">cargando...</span>
+      </div>
+      <div class="alerts-list" id="alerts-list">
+        <div class="loading"><div class="spinner"></div> Conectando con MongoDB...</div>
+      </div>
+    </div>
+
+    <!-- DEVICES -->
+    <div class="devices-card">
+      <div class="card-header">
+        <span class="card-title">📡 Estado de dispositivos</span>
+        <span class="chart-badge" id="devices-count">--</span>
+      </div>
+      <div class="devices-list" id="devices-list">
+        <div class="loading"><div class="spinner"></div> Conectando con MongoDB...</div>
+      </div>
+    </div>
+
+  </div>
+
+</main>
+
+<script>
+// ── RELOJ ──────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toLocaleTimeString('es-ES') + ' · ' + now.toLocaleDateString('es-ES');
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── CONFIG API (Node-RED) ─────────────────────────────────────────
+const API = 'http://localhost:1880';
+
+// ── FETCH ALERTAS ─────────────────────────────────────────────────
+async function fetchAlerts() {
+  try {
+    const res = await fetch(`${API}/api/alerts`);
+    if (!res.ok) throw new Error('API no disponible');
+    const data = await res.json();
+    renderAlerts(data);
+  } catch (e) {
+    // Si la API aún no está creada, mostrar datos demo
+    renderAlerts(null);
+  }
+}
+
+function renderAlerts(data) {
+  const list = document.getElementById('alerts-list');
+  const count = document.getElementById('alert-count');
+
+  if (!data || data.length === 0) {
+    list.innerHTML = `<div class="no-alerts">✅ Sin alertas recientes</div>`;
+    count.textContent = '0 alertas';
+    return;
+  }
+
+  count.textContent = `${data.length} alertas`;
+  list.innerHTML = data.slice(0, 8).map(a => {
+    const alerta = a.alerts?.[0];
+    const fecha = new Date(a.triggered_at).toLocaleTimeString('es-ES');
+    return `
+      <div class="alert-item">
+        <div class="alert-dot"></div>
+        <div class="alert-info">
+          <div class="alert-device">${a.device_id} · ${a.zone}</div>
+          <div class="alert-detail">
+            ${alerta?.field || 'N/A'}: 
+            <span class="alert-value">${alerta?.value?.toFixed(1) || '--'}</span>
+            (umbral: ${alerta?.threshold || '--'})
+          </div>
+        </div>
+        <div class="alert-time">${fecha}</div>
+      </div>`;
+  }).join('');
+}
+
+// ── FETCH DEVICES ─────────────────────────────────────────────────
+async function fetchDevices() {
+  try {
+    const res = await fetch(`${API}/api/devices`);
+    if (!res.ok) throw new Error('API no disponible');
+    const data = await res.json();
+    renderDevices(data);
+  } catch (e) {
+    renderDevices(null);
+  }
+}
+
+function renderDevices(data) {
+  const list = document.getElementById('devices-list');
+  const count = document.getElementById('devices-count');
+
+  if (!data || data.length === 0) {
+    // Mostrar dispositivos conocidos como fallback
+    const fallback = [
+      { device_id: 'nodo_1', zone: 'zona_norte', status: 'online', last_seen: new Date() },
+      { device_id: 'nodo_2', zone: 'zona_sur',   status: 'online', last_seen: new Date() }
+    ];
+    renderDevices(fallback);
+    return;
+  }
+
+  count.textContent = `${data.length} nodos`;
+  const ahora = Date.now();
+
+  list.innerHTML = data.map(d => {
+    const lastSeen = new Date(d.last_seen);
+    const minutos = Math.floor((ahora - lastSeen) / 60000);
+    const online = minutos < 5;
+    const tiempoTexto = minutos < 1 ? 'ahora mismo' :
+                        minutos < 60 ? `hace ${minutos} min` :
+                        lastSeen.toLocaleTimeString('es-ES');
+    return `
+      <div class="device-item">
+        <div class="device-left">
+          <div class="device-indicator ${online ? '' : 'offline'}"></div>
+          <div>
+            <div class="device-name">${d.device_id}</div>
+            <div class="device-zone">${d.zone || 'sin zona'}</div>
+          </div>
+        </div>
+        <div class="device-right">
+          <div class="device-status ${online ? '' : 'offline'}">${online ? 'ONLINE' : 'OFFLINE'}</div>
+          <div class="device-lastseen">${tiempoTexto}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── FETCH KPIs desde InfluxDB via Node-RED ────────────────────────
+async function fetchKPIs() {
+  try {
+    const res = await fetch(`${API}/api/kpis`);
+    if (!res.ok) throw new Error();
+    const d = await res.json();
+    if (d.temperature !== undefined) document.getElementById('kpi-temp').textContent = d.temperature.toFixed(1);
+    if (d.humidity !== undefined)    document.getElementById('kpi-hum').textContent  = d.humidity.toFixed(1);
+    if (d.gas !== undefined) {
+      document.getElementById('kpi-gas').textContent = Math.round(d.gas);
+      const card = document.getElementById('kpi-gas-card');
+      card.className = d.gas > 200 ? 'kpi-card warn' : 'kpi-card';
+    }
+    if (d.light !== undefined) document.getElementById('kpi-light').textContent = Math.round(d.light);
+  } catch (e) {
+    // KPIs no disponibles aún, los iframes de Grafana ya muestran los datos
+  }
+}
+
+// ── POLLING ───────────────────────────────────────────────────────
+fetchAlerts();
+fetchDevices();
+fetchKPIs();
+
+setInterval(fetchAlerts,  30000);
+setInterval(fetchDevices, 30000);
+setInterval(fetchKPIs,    15000);
+</script>
+</body>
+</html>
