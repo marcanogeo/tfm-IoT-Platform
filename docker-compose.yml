@@ -26,14 +26,15 @@ services:
       - influxdb_data:/var/lib/influxdb2
       - influxdb_config:/etc/influxdb2
     environment:
-      - INFLUXDB_ADMIN_USER=admin
-      - INFLUXDB_ADMIN_PASSWORD=admin123
-      - INFLUXDB_ORG=tfm-iot
-      - INFLUXDB_BUCKET=sensor-data
-      - INFLUXDB_TOKEN=sR9ozJ4plkU1XZeJRm_UH8-3eWADt6FHxuX6u_ws7ruZwxvdRYFfDEwu4OJIo_j7Vnf0_bYago9zlHaqdegTSQ==
+    - DOCKER_INFLUXDB_INIT_MODE=setup
+    - DOCKER_INFLUXDB_INIT_USERNAME={INFLUXDB_INIT_USERNAME}
+    - DOCKER_INFLUXDB_INIT_PASSWORD={INFLUXDB_INIT_PASSWORD}
+    - DOCKER_INFLUXDB_INIT_ORG={INFLUXDB_INIT_ORG}
+    - DOCKER_INFLUXDB_INIT_BUCKET={INFLUXDB_INIT_BUCKET}
+    - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN={INFLUXDB_INIT_ADMIN_TOKEN}
     networks:
       - iot-network
-    ##restart: always
+    restart: always
 
   # Base de Datos Documental (Usuarios y Alertas)
   mongodb:
@@ -48,7 +49,7 @@ services:
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
     networks:
       - iot-network
-   ###restart: always
+    restart: always
 
   # Node-RED (simulador ESP32 + Backend)
   nodered:
@@ -68,7 +69,7 @@ services:
       - mongodb
     networks:
       - iot-network
-    ###restart: always
+    restart: always
 # visualización Grafana
   grafana:
     image: grafana/grafana:latest
@@ -91,7 +92,7 @@ services:
       - influxdb
     networks:
       - iot-network
-    ###restart: always
+    restart: always
 volumes:
   mosquitto_data:
   mosquitto_log:
