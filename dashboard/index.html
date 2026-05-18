@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; frame-src http://localhost:3000; connect-src http://localhost:1880;">
 <title>TFM — Sistema de Monitoreo Ambiental IoT</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
@@ -53,7 +52,6 @@
     padding: 1.2rem 2rem;
     border-bottom: 1px solid var(--border);
     background: rgba(8,12,16,.9);
-    -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
   }
 
@@ -536,37 +534,31 @@
   </div>
 </header>
 
-<noscript>
-  <div style="background:#1a1a2e;color:#ff4757;text-align:center;padding:2rem;font-family:monospace;font-size:1rem;">
-    ⚠️ Este dashboard requiere JavaScript habilitado para funcionar correctamente.
-  </div>
-</noscript>
-
 <main>
 
   <!-- KPI STRIP -->
   <div class="section-label">Estado actual — últimos 5 minutos</div>
   <div class="kpi-strip" id="kpi-strip">
     <div class="kpi-card">
-      <div class="kpi-icon" role="img" aria-label="Temperatura">🌡️</div>
+      <div class="kpi-icon">🌡️</div>
       <div class="kpi-label">Temperatura</div>
       <div class="kpi-value" id="kpi-temp">--</div>
       <div class="kpi-sub">°C · promedio nodos</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-icon" role="img" aria-label="Humedad">💧</div>
+      <div class="kpi-icon">💧</div>
       <div class="kpi-label">Humedad</div>
       <div class="kpi-value" id="kpi-hum">--</div>
       <div class="kpi-sub">% · promedio nodos</div>
     </div>
     <div class="kpi-card warn" id="kpi-gas-card">
-      <div class="kpi-icon" role="img" aria-label="Gas">☁️</div>
+      <div class="kpi-icon">☁️</div>
       <div class="kpi-label">Gas MQ2 est.</div>
       <div class="kpi-value" id="kpi-gas">--</div>
       <div class="kpi-sub">ppm · umbral 200</div>
     </div>
     <div class="kpi-card">
-      <div class="kpi-icon" role="img" aria-label="Luminosidad">☀️</div>
+      <div class="kpi-icon">☀️</div>
       <div class="kpi-label">Luminosidad</div>
       <div class="kpi-value" id="kpi-light">--</div>
       <div class="kpi-sub">ADC raw · 0-4095</div>
@@ -582,21 +574,23 @@
         <span class="chart-title">🌡️ Temperatura por dispositivo</span>
         <span class="chart-badge">°C</span>
       </div>
-     <iframe src="http://localhost:3000/d-solo/adsgmct/tfm-monitoreo-ambiental?orgId=1&from=1779080288702&to=1779101888702&timezone=browser&panelId=panel-1" width="450" height="200" frameborder="0"></iframe>
+      <iframe src="http://localhost:3000/d-solo/adrdbkz/tfm-monitoreo-ambiental?orgId=1&panelId=panel-1&theme=dark&refresh=30s" allowfullscreen></iframe>
+    </div>
 
     <div class="chart-card">
       <div class="chart-header">
         <span class="chart-title">💧 Humedad por dispositivo</span>
         <span class="chart-badge">%</span>
       </div>
-      <iframe src="http://localhost:3000/d-solo/adsgmct/tfm-monitoreo-ambiental?orgId=1&from=1779080288702&to=1779101888702&timezone=browser&panelId=panel-2" width="450" height="200" frameborder="0"></iframe>
+      <iframe src="http://localhost:3000/d-solo/adrdbkz/tfm-monitoreo-ambiental?orgId=1&panelId=panel-2&theme=dark&refresh=30s" allowfullscreen></iframe>
+    </div>
 
     <div class="chart-card">
       <div class="chart-header">
         <span class="chart-title">☁️ Gas MQ2 estimado con umbral</span>
         <span class="chart-badge">ppm</span>
       </div>
-     <iframe src="http://localhost:3000/d-solo/adsgmct/tfm-monitoreo-ambiental?orgId=1&from=1779080288702&to=1779101888702&timezone=browser&panelId=panel-3" width="450" height="200" frameborder="0"></iframe>
+      <iframe src="http://localhost:3000/d-solo/adrdbkz/tfm-monitoreo-ambiental?orgId=1&panelId=panel-3&theme=dark&refresh=30s" allowfullscreen></iframe>
     </div>
 
     <div class="chart-card">
@@ -604,7 +598,7 @@
         <span class="chart-title">☀️ Luminosidad por dispositivo</span>
         <span class="chart-badge">RAW</span>
       </div>
-     <iframe src="http://localhost:3000/d-solo/adsgmct/tfm-monitoreo-ambiental?orgId=1&from=1779080288702&to=1779101888702&timezone=browser&panelId=panel-4" width="450" height="200" frameborder="0"></iframe>
+      <iframe src="http://localhost:3000/d-solo/adrdbkz/tfm-monitoreo-ambiental?orgId=1&panelId=panel-4&theme=dark&refresh=30s" allowfullscreen></iframe>
     </div>
 
   </div>
@@ -652,13 +646,6 @@ updateClock();
 // ── CONFIG API (Node-RED) ─────────────────────────────────────────
 const API = 'http://localhost:1880';
 
-// ── UTILIDAD: escapar HTML para prevenir XSS ──────────────────────
-function esc(str) {
-  const d = document.createElement('div');
-  d.textContent = String(str ?? '');
-  return d.innerHTML;
-}
-
 // ── FETCH ALERTAS ─────────────────────────────────────────────────
 async function fetchAlerts() {
   try {
@@ -667,7 +654,7 @@ async function fetchAlerts() {
     const data = await res.json();
     renderAlerts(data);
   } catch (e) {
-    console.warn('[fetchAlerts]', e.message);
+    // Si la API aún no está creada, mostrar datos demo
     renderAlerts(null);
   }
 }
@@ -690,14 +677,14 @@ function renderAlerts(data) {
       <div class="alert-item">
         <div class="alert-dot"></div>
         <div class="alert-info">
-          <div class="alert-device">${esc(a.device_id)} · ${esc(a.zone)}</div>
+          <div class="alert-device">${a.device_id} · ${a.zone}</div>
           <div class="alert-detail">
-            ${esc(alerta?.field) || 'N/A'}: 
+            ${alerta?.field || 'N/A'}: 
             <span class="alert-value">${alerta?.value?.toFixed(1) || '--'}</span>
-            (umbral: ${esc(alerta?.threshold) || '--'})
+            (umbral: ${alerta?.threshold || '--'})
           </div>
         </div>
-        <div class="alert-time">${esc(fecha)}</div>
+        <div class="alert-time">${fecha}</div>
       </div>`;
   }).join('');
 }
@@ -710,7 +697,6 @@ async function fetchDevices() {
     const data = await res.json();
     renderDevices(data);
   } catch (e) {
-    console.warn('[fetchDevices]', e.message);
     renderDevices(null);
   }
 }
@@ -720,11 +706,13 @@ function renderDevices(data) {
   const count = document.getElementById('devices-count');
 
   if (!data || data.length === 0) {
-    // Usar dispositivos conocidos como fallback (sin recursión)
-    data = [
+    // Mostrar dispositivos conocidos como fallback
+    const fallback = [
       { device_id: 'nodo_1', zone: 'zona_norte', status: 'online', last_seen: new Date() },
       { device_id: 'nodo_2', zone: 'zona_sur',   status: 'online', last_seen: new Date() }
     ];
+    renderDevices(fallback);
+    return;
   }
 
   count.textContent = `${data.length} nodos`;
@@ -742,13 +730,13 @@ function renderDevices(data) {
         <div class="device-left">
           <div class="device-indicator ${online ? '' : 'offline'}"></div>
           <div>
-            <div class="device-name">${esc(d.device_id)}</div>
-            <div class="device-zone">${esc(d.zone) || 'sin zona'}</div>
+            <div class="device-name">${d.device_id}</div>
+            <div class="device-zone">${d.zone || 'sin zona'}</div>
           </div>
         </div>
         <div class="device-right">
           <div class="device-status ${online ? '' : 'offline'}">${online ? 'ONLINE' : 'OFFLINE'}</div>
-          <div class="device-lastseen">${esc(tiempoTexto)}</div>
+          <div class="device-lastseen">${tiempoTexto}</div>
         </div>
       </div>`;
   }).join('');
@@ -769,7 +757,6 @@ async function fetchKPIs() {
     }
     if (d.light !== undefined) document.getElementById('kpi-light').textContent = Math.round(d.light);
   } catch (e) {
-    console.warn('[fetchKPIs]', e.message);
     // KPIs no disponibles aún, los iframes de Grafana ya muestran los datos
   }
 }
