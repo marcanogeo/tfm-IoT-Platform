@@ -14,7 +14,7 @@ services:
       - mosquitto_log:/mosquitto/log
     networks:
       - iot-network
-    ##restart: always
+    restart: always
 
   # Base de datos InfluxDB (Series Temporales)
   influxdb:
@@ -70,6 +70,7 @@ services:
     networks:
       - iot-network
     restart: always
+
 # visualización Grafana
   grafana:
     image: grafana/grafana:latest

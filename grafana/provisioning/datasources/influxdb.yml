@@ -12,4 +12,4 @@ datasources:
       token: sR9ozJ4plkU1XZeJRm_UH8-3eWADt6FHxuX6u_ws7ruZwxvdRYFfDEwu4OJIo_j7Vnf0_bYago9zlHaqdegTSQ==
     database: iot_data
     user: admin
-    password: admin123
+    password: admin1234
