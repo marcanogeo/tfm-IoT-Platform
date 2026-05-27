@@ -3,7 +3,7 @@ datasources:
   - name: InfluxDB
     type: influxdb
     access: proxy
-    url: http://influxdb:8086
+    url: http://iot-influxdb:8086
     jsonData:
       version: Flux
       organization: tfm-iot
