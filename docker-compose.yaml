@@ -1,0 +1,238 @@
+networks:
+  iot_net:                        # guión bajo evita problemas en algunos entornos
+    driver: bridge
+    name: iot_net
+
+volumes:
+  mosquitto_data:
+  mosquitto_log:
+  influxdb_data:
+  influxdb_config:
+  mongodb_data:
+  nodered_data:
+  grafana_data:
+
+# -----------------------------------------------------------------------------
+services:
+
+  # ---------------------------------------------------------------------------
+  # BROKER MQTT — Eclipse Mosquitto
+  # Topics del proyecto: enviro/{site}/{device_id}/telemetry
+  # ---------------------------------------------------------------------------
+  mosquitto:
+    image: eclipse-mosquitto:2.0      # Versión fija, más seguro que :latest
+    container_name: iot-mosquitto
+    restart: unless-stopped           
+    ports:
+      - "${MQTT_PORT:-1883}:1883"     # MQTT plano (Wokwi / red local)
+      - "${MQTTS_PORT:-8883}:8883"    # MQTT con TLS (ESP32 físico)
+      - "${MQTT_WS_PORT:-9001}:9001"  # WebSocket MQTT (dashboards web)
+    volumes:
+      - ./mosquitto/config:/mosquitto/config:ro
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+    networks:
+      - iot_net
+    healthcheck:                      # sin esto nodered arranca en falso
+      test:
+        - "CMD-SHELL"
+        - |
+          mosquitto_sub -t '$$SYS/#' -C 1 \
+            -u "${MQTT_USER}" -P "${MQTT_PASSWORD}" --quiet
+      interval: 20s
+      timeout: 10s
+      retries: 4
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # BASE DE DATOS DE SERIES TEMPORALES — InfluxDB 2.7
+  # Almacena toda la telemetría de sensores (temperatura, humedad, gas, LDR)
+  # ---------------------------------------------------------------------------
+  influxdb:
+    image: influxdb:2.7
+    container_name: iot-influxdb
+    restart: unless-stopped           
+    ports:
+      - "${INFLUXDB_PORT:-8086}:8086"
+    environment:                      
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=${INFLUXDB_INIT_USERNAME}
+      - DOCKER_INFLUXDB_INIT_PASSWORD=${INFLUXDB_INIT_PASSWORD}
+      - DOCKER_INFLUXDB_INIT_ORG=${INFLUXDB_INIT_ORG}
+      - DOCKER_INFLUXDB_INIT_BUCKET=${INFLUXDB_INIT_BUCKET}
+      - DOCKER_INFLUXDB_INIT_RETENTION=${INFLUXDB_RETENTION:-365d}
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=${INFLUXDB_INIT_ADMIN_TOKEN}
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+      - influxdb_config:/etc/influxdb2
+    networks:
+      - iot_net
+    healthcheck:                     
+      test: ["CMD", "influx", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s              # InfluxDB tarda en el primer setup
+
+  # ---------------------------------------------------------------------------
+  # BASE DE DATOS DOCUMENTAL — MongoDB 7.0
+  # Gestiona usuarios, dispositivos, reglas de alerta y eventos
+  # ---------------------------------------------------------------------------
+  mongodb:
+    image: mongo:7.0                  # mongo:6 → 7.0 (memoria del TFM)
+    container_name: iot-mongodb
+    restart: unless-stopped           
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
+      - MONGO_INITDB_DATABASE=${MONGO_DB:-tfm_iot}
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongodb/init:/docker-entrypoint-initdb.d:ro  # Scripts de init
+    networks:
+      - iot_net
+    healthcheck:                      
+      test:
+        - "CMD"
+        - "mongosh"
+        - "--quiet"
+        - "--eval"
+        - "db.adminCommand('ping').ok"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # ORQUESTACIÓN DE FLUJOS — Node-RED 3.1
+  # Ingesta MQTT → validación → InfluxDB / MongoDB → alertas Telegram
+  # ---------------------------------------------------------------------------
+  nodered:
+    image: nodered/node-red:3.1       # Versión fija
+    container_name: iot-nodered
+    restart: unless-stopped           
+    ports:
+      - "${NODERED_PORT:-1880}:1880"
+    environment:
+      - TZ=${TZ:-Europe/Madrid}
+      - NODE_RED_CREDENTIAL_SECRET=${NODERED_SECRET}
+      # Conexiones a servicios internos (por nombre de contenedor)
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
+      - MQTT_USER=${MQTT_USER}
+      - MQTT_PASSWORD=${MQTT_PASSWORD}
+      - INFLUX_URL=http://influxdb:8086
+      - INFLUX_TOKEN=${INFLUXDB_INIT_ADMIN_TOKEN}
+      - INFLUX_ORG=${INFLUXDB_INIT_ORG}
+      - INFLUX_BUCKET=${INFLUXDB_INIT_BUCKET}
+      - MONGO_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongodb:27017/${MONGO_DB:-tfm_iot}?authSource=admin
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+    volumes:
+      - nodered_data:/data
+      - ./node-red/settings.js:/data/settings.js:ro
+      - ./dashboard:/data/dashboard
+    depends_on:                       # Espera a que los servicios estén sanos
+      mosquitto:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    networks:
+      - iot_net
+    user: "1000:1000"
+
+  # ---------------------------------------------------------------------------
+  # [NEW-3] BACKEND PYTHON — FastAPI
+  # API REST + WebSocket + motor de alertas por umbral
+  # Documentación automática en http://localhost:8000/docs
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: tfm_backend:latest
+    container_name: iot-backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    environment:
+      - TZ=${TZ:-Europe/Madrid}
+      - DEBUG=${DEBUG:-false}
+      # InfluxDB
+      - INFLUX_URL=http://influxdb:8086
+      - INFLUX_TOKEN=${INFLUXDB_INIT_ADMIN_TOKEN}
+      - INFLUX_ORG=${INFLUXDB_INIT_ORG}
+      - INFLUX_BUCKET=${INFLUXDB_INIT_BUCKET}
+      # MongoDB
+      - MONGO_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongodb:27017/${MONGO_DB:-tfm_iot}?authSource=admin
+      - MONGO_DB=${MONGO_DB:-tfm_iot}
+      # MQTT (para suscripción y reenvío por WebSocket)
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
+      - MQTT_USER=${MQTT_USER}
+      - MQTT_PASSWORD=${MQTT_PASSWORD}
+      # Seguridad JWT
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRE_MINUTES=${JWT_EXPIRE_MINUTES:-60}
+      # Notificaciones
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      # Umbrales de alerta
+      - ALERT_TEMP_MAX=${ALERT_TEMP_MAX:-40.0}
+      - ALERT_HUM_MIN=${ALERT_HUM_MIN:-20.0}
+      - ALERT_GAS_MAX=${ALERT_GAS_MAX:-300.0}
+      - ALERT_LDR_MAX=${ALERT_LDR_MAX:-900}
+    volumes:
+      - ./backend:/app               # Hot-reload en desarrollo
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    networks:
+      - iot_net
+    healthcheck:
+      #test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  # ---------------------------------------------------------------------------
+  # VISUALIZACIÓN — Grafana OSS 10.4
+  # Dashboards de series temporales conectados a InfluxDB via Flux
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana-oss:10.4.2  # Versión fija
+    container_name: iot-grafana
+    restart: unless-stopped             
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GF_SECURITY_SECRET_KEY=${GRAFANA_SECRET_KEY}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false  # Acceso anónimo desactivado
+      - GF_SECURITY_ALLOW_EMBEDDING=true # Permite incrustar en la web
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:3000}
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:                         
+      influxdb:
+        condition: service_healthy
+    networks:
+      - iot_net
+    user: "472"
