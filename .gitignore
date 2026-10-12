@@ -2,6 +2,7 @@
 .env
 *.env
 .env.*
+!.env.example
 
 # Datos de volúmenes Docker/Podman
 mosquitto_data/
@@ -25,6 +26,7 @@ grafana/grafana.db-journal
 grafana/grafana.db-wal
 grafana/grafana.db-shm
 grafana/plugins/
+grafana/grafana.db
 
 # macOS
 .DS_Store
