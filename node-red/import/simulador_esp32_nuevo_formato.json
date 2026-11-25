@@ -1,0 +1,69 @@
+[
+  {
+    "id": "sim0000000000001",
+    "type": "comment",
+    "z": "89a4404e24f13225",
+    "name": "Simulador ESP32 físico (nuevo formato)",
+    "info": "Publica cada 20 s mensajes con el formato de docs/diccionario_datos_mqtt_tfm.xlsx. Desactívalo cuando conectes el prototipo real.",
+    "x": 180,
+    "y": 1100,
+    "wires": []
+  },
+  {
+    "id": "sim0000000000002",
+    "type": "inject",
+    "z": "89a4404e24f13225",
+    "name": "cada 20 s",
+    "props": [],
+    "repeat": "20",
+    "crontab": "",
+    "once": false,
+    "onceDelay": 0.1,
+    "topic": "",
+    "x": 130,
+    "y": 1140,
+    "wires": [
+      [
+        "sim0000000000003"
+      ]
+    ]
+  },
+  {
+    "id": "sim0000000000003",
+    "type": "function",
+    "z": "89a4404e24f13225",
+    "name": "Generar lecturas ESP32",
+    "func": "// Simulador del ESP32 físico (BME280 + ENS160 + BH1750 + SDS011)\n// Publica con el formato del diccionario de datos (docs/diccionario_datos_mqtt_tfm.xlsx)\nconst NODOS = [\n    { id: \"nodo_sim_1\", zone: \"zona_norte\" },\n    { id: \"nodo_sim_2\", zone: \"zona_sur\" }\n];\nconst CICLO_SDS011 = 3;   // el SDS011 mide 1 de cada 3 envíos (resto en reposo)\n\nlet ciclo = (context.get(\"ciclo\") || 0) + 1;\ncontext.set(\"ciclo\", ciclo);\nconst arranque = context.get(\"arranque\") || Date.now();\ncontext.set(\"arranque\", arranque);\nconst segundosEncendido = (Date.now() - arranque) / 1000;\n\nconst r = (min, max, dec = 1) => Number((Math.random() * (max - min) + min).toFixed(dec));\n\nreturn [NODOS.map(n => {\n    const sensors = {\n        temperature_c: r(19, 28),\n        humidity_pct: r(35, 65),\n        pressure_hpa: r(1005, 1022),\n        eco2_ppm: Math.round(r(450, 1300, 0)),\n        tvoc_ppb: Math.round(r(20, 400, 0)),\n        aqi: Math.round(r(1, 4, 0)),\n        ens160_status: segundosEncendido < 180 ? \"warmup\" : \"ok\",\n        light_lux: Math.round(r(150, 900, 0))\n    };\n    if (ciclo % CICLO_SDS011 === 0) {\n        sensors.pm25_ugm3 = r(3, 30);\n        sensors.pm10_ugm3 = r(8, 60);\n    }\n    return {\n        topic: `tfm/ambiental/${n.zone}/${n.id}/telemetria`,\n        payload: JSON.stringify({\n            device_id: n.id,\n            zone: n.zone,\n            timestamp: Math.floor(Date.now() / 1000),\n            sensors\n        })\n    };\n})];",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 330,
+    "y": 1140,
+    "wires": [
+      [
+        "sim0000000000004"
+      ]
+    ]
+  },
+  {
+    "id": "sim0000000000004",
+    "type": "mqtt out",
+    "z": "89a4404e24f13225",
+    "name": "Publicar en tfm/ambiental",
+    "topic": "",
+    "qos": "0",
+    "retain": "false",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "fd2a57e5e7814d59",
+    "x": 570,
+    "y": 1140,
+    "wires": []
+  }
+]

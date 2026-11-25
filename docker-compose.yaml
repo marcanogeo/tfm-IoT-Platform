@@ -42,8 +42,6 @@ services:
     restart: unless-stopped           
     ports:
       - "${MQTT_PORT:-1883}:1883"     # MQTT plano (Wokwi / red local)
-      - "${MQTTS_PORT:-8883}:8883"    # MQTT con TLS (ESP32 físico)
-      - "${MQTT_WS_PORT:-9001}:9001"  # WebSocket MQTT (dashboards web)
     volumes:
       - ./mosquitto/config:/mosquitto/config:ro
       - mosquitto_data:/mosquitto/data
